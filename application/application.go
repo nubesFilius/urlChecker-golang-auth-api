@@ -14,6 +14,8 @@ var (
 
 func StartApplication() {
 
+	routes()
+
 	srv := &http.Server{
 		Addr: ":8081",
 		// Good practice to set timeouts to avoid Slowloris attacks.

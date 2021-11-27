@@ -6,32 +6,27 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/nubesFilius/urlChecker-golang-auth-api/domains/openid"
 	"github.com/pkg/errors"
 )
 
 const DefaultDiscoveryPath = "/.well-known/webfinger"
 
-type DiscoveryConfig struct {
-	Issuer                                     string   `json:"issuer"`
-	AuthEndpoint                               string   `json:"authorization_endpoint"`
-	TokenEndpoint                              string   `json:"token_endpoint"`
-	UserInfoEndpoint                           string   `json:"userinfo_endpoint"`
-	RegistrationEndpoint                       string   `json:"registration_endpoint"`
-	KeysEndpoint                               string   `json:"jwks_uri"`
-	ClaimsParameterSupported                   bool     `json:"claims_parameter_supported"`
-	ScopesSupported                            []string `json:"scopes_supported"`
-	ResponseTypesSupported                     []string `json:"response_types_supported"`
-	ResponseModesSupported                     []string `json:"response_modes_supported"`
-	GrantTypesSupported                        []string `json:"grant_types_supported"`
-	SubjectTypesSupported                      []string `json:"subject_types_supported"`
-	IDTokenSigningAlgValues                    []string `json:"id_token_signing_alg_values_supported"`
-	TokenEndpointAuthMethodsSupported          []string `json:"token_endpoint_auth_methods_supported"`
-	TokenEndpointAuthSigningAlgValuesSupported []string `json:"token_endpoint_auth_signing_alg_values_supported"`
-	ClaimsSupported                            []string `json:"claims_supported"`
+var (
+	OIDController oidControllerInterface = &oidController{}
+)
+
+type oidControllerInterface interface {
+	DefaultDiscoveryConfig(url string) *openid.DiscoveryConfig
+	Fetch(url string) (*openid.DiscoveryConfig, error)
+	HTTPHandlerFunc() http.HandlerFunc
 }
 
-func DefaultDiscoveryConfig(url string) *DiscoveryConfig {
-	return &DiscoveryConfig{
+type oidController struct {
+}
+
+func (*oidController) DefaultDiscoveryConfig(url string) *openid.DiscoveryConfig {
+	return &openid.DiscoveryConfig{
 		Issuer:                            url,
 		AuthEndpoint:                      url + "/auth",
 		TokenEndpoint:                     url + "/auth/token",
@@ -49,7 +44,8 @@ func DefaultDiscoveryConfig(url string) *DiscoveryConfig {
 	}
 }
 
-func Fetch(url string) (*DiscoveryConfig, error) {
+// Get request to the DefaultDiscoveryPath url of OIDC
+func (*oidController) Fetch(url string) (*openid.DiscoveryConfig, error) {
 	resp, err := http.Get(fmt.Sprintf("%s%s", url, DefaultDiscoveryPath))
 	if err != nil {
 		return nil, fmt.Errorf("could not fetch OpenID Configuration: %s", err)
@@ -64,7 +60,7 @@ func Fetch(url string) (*DiscoveryConfig, error) {
 	}
 	defer resp.Body.Close()
 
-	var discoveryConfig DiscoveryConfig
+	var discoveryConfig openid.DiscoveryConfig
 	err = json.Unmarshal(respBytes, &discoveryConfig)
 	if err != nil {
 		return nil, fmt.Errorf("bad type / could not parse OpenID configuration: %s", err)
@@ -74,8 +70,8 @@ func Fetch(url string) (*DiscoveryConfig, error) {
 
 // HTTPHandlerFunc returns an HTTP handler function for
 // the OpenID Discovery Configuration to be served at
-func (dc *DiscoveryConfig) HTTPHandlerFunc() http.HandlerFunc {
-	configBytes, err := json.Marshal(&dc)
+func (oid *oidController) HTTPHandlerFunc() http.HandlerFunc {
+	configBytes, err := json.Marshal(&oid)
 	if err != nil {
 		panic(errors.Wrap(err, "could not marshal OpenID Connect Discovery Configuration"))
 	}
